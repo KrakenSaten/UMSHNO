@@ -1052,12 +1052,14 @@ pub mod software {
         pub fn shared_secret_with(&self, peer: &PublicKey) -> Result<SharedSecret, CryptoError> {
             let local = signing_key_to_x25519(&self.secret);
             let remote = public_key_to_x25519(peer)?;
-            let shared = local.diffie_hellman(&remote);
-            let bytes = shared.to_bytes();
-            if bytes.iter().all(|byte| *byte == 0) {
+            // Straight into the wrapper that wipes itself, so no plain copy
+            // of the secret is left behind; `local` and the dalek secret
+            // wipe themselves on drop too.
+            let shared = SharedSecret(local.diffie_hellman(&remote).to_bytes());
+            if shared.0.iter().all(|byte| *byte == 0) {
                 return Err(CryptoError::InvalidSharedSecret);
             }
-            Ok(SharedSecret(bytes))
+            Ok(shared)
         }
     }
 
@@ -1172,6 +1174,19 @@ mod tests {
     const TEST_LOCAL_KEY: PublicKey = PublicKey([0x10; 32]);
     #[cfg(feature = "software-crypto")]
     const TEST_REMOTE_KEY: PublicKey = PublicKey([0xAB; 32]);
+
+    /// The X25519 scalar and the raw shared secret are wiped when dropped,
+    /// as UEP-0009 requires of a forward-secret session's ephemeral keys.
+    /// Both types do so only with `x25519-dalek`'s `zeroize` feature, which
+    /// derives `Zeroize` and a wiping `Drop` together, so this fails to
+    /// compile if the feature is ever dropped.
+    #[cfg(feature = "software-crypto")]
+    #[test]
+    fn x25519_secrets_are_wiped_on_drop() {
+        fn wiped_on_drop<T: zeroize::Zeroize>() {}
+        wiped_on_drop::<x25519_dalek::StaticSecret>();
+        wiped_on_drop::<x25519_dalek::SharedSecret>();
+    }
 
     #[cfg(feature = "software-crypto")]
     #[test]
