@@ -328,7 +328,14 @@ operation exists, and the binding is what refused it—to:
 - `CMD_SESSION_START`: an administrator has no session;
 - writes to
   [`PROP_DEV_PRIVATE_KEY`](ulcp-device.md#prop-dev-private-key): a device
-  identity cannot be installed over the mesh.
+  identity cannot be installed over the mesh;
+- writes to `PROP_BLE_BOND_COUNT`, `PROP_BLE_PAIRING`, and
+  `PROP_BLE_PAIRING_PIN`: enrolling a Bluetooth host is for someone with
+  the device in hand. A bond grants the local binding, which can install a
+  device identity, so an administrator that could forget the bonds (which
+  clears the PIN and opens a window), set the PIN, or open a window could
+  enroll a host, or let anyone in range enroll one, and exceed this
+  binding. Reading them is permitted.
 
 A request authenticated as the identity in
 [`PROP_HOST_KEY`](ulcp-host.md#prop-host-key) is executed whether or not

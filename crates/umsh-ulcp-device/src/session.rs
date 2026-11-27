@@ -21204,6 +21204,30 @@ mod tests {
         }
     }
 
+    /// Pairing a Bluetooth host is a physical-presence ceremony, and a
+    /// bond grants the local binding, which can install a device identity
+    /// that the administrative binding cannot. So an administrator over
+    /// the mesh may not forget the bonds (which also clears the PIN and
+    /// opens a window anyone in range can pair through), set the PIN, or
+    /// open a window: any of them would let it, or whoever is nearby,
+    /// enroll a host and climb to the local binding.
+    #[test]
+    fn bluetooth_pairing_is_not_an_admins_to_start() {
+        let mut session = test_session();
+        let mut buf = [0u8; 64];
+        for (key, value) in [
+            (prop::BLE_BOND_COUNT, &[0u8][..]),
+            (prop::BLE_PAIRING, &[1]),
+            (prop::BLE_PAIRING_PIN, &[0x40, 0xE2, 0x01, 0x00]),
+        ] {
+            let len = frame::prop_set(&mut buf, TID_UNSOLICITED, key, value).unwrap();
+            let emitted = admin(&mut session, &buf[..len]);
+            assert_eq!(emitted.len(), 1, "key {key}");
+            expect_status(&emitted[0], TID_UNSOLICITED, Status::NOT_PERMITTED);
+            assert!(!admin_writable(key), "key {key}");
+        }
+    }
+
     #[test]
     fn the_host_domain_is_not_an_admins_to_write() {
         let mut session = test_session();

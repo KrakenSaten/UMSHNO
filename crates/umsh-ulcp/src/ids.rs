@@ -1072,6 +1072,16 @@ pub fn admin_writable(key: u32) -> bool {
             | prop::UART_WINDOW
             // A device identity cannot be installed over the mesh.
             | prop::DEV_PRIVATE_KEY
+            // Nor can a Bluetooth host be enrolled from it. A bond grants
+            // the local binding, which can install a device identity, so
+            // forgetting the bonds (which clears the PIN and opens a
+            // window anyone in range can pair through), setting the PIN,
+            // or opening a window would let an administrator, or whoever
+            // is nearby, climb past what this binding allows. Pairing is
+            // for someone with the device in hand.
+            | prop::BLE_BOND_COUNT
+            | prop::BLE_PAIRING
+            | prop::BLE_PAIRING_PIN
     )
 }
 
