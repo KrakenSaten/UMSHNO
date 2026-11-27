@@ -21058,6 +21058,34 @@ mod tests {
         assert_eq!(get(&mut session, prop::HOST_AUTO_ACK), [1]);
     }
 
+    /// Bluetooth pairing is the device's own interface's to start, by the
+    /// same physical possession that lets it install an identity: its
+    /// screen and a wired application are not refused what the mesh
+    /// administrator is.
+    #[test]
+    fn the_device_interface_may_start_bluetooth_pairing() {
+        for (key, value) in [
+            (prop::BLE_PAIRING, &[1u8][..]),
+            (prop::BLE_BOND_COUNT, &[0]),
+        ] {
+            let mut session: TestSession =
+                Session::new(test_config(), Status::RESET_POWER_ON, test_engine());
+            let mut buf = [0u8; 64];
+            let len = frame::prop_set(&mut buf, 3, key, value).unwrap();
+            let (emitted, effect) = device(&mut session, &buf[..len]);
+            let refused = emitted.iter().any(|frame| {
+                let (_, response_key, value) = parse_prop_is(frame);
+                response_key == prop::LAST_STATUS
+                    && pui::decode(&value).unwrap().0 == Status::NOT_PERMITTED.0
+            });
+            assert!(!refused, "key {key} refused to the device interface");
+            assert!(
+                effect.is_some() || !emitted.is_empty(),
+                "key {key} went nowhere"
+            );
+        }
+    }
+
     /// The device domain is the interface's to write, with the authority
     /// of physical possession behind its key material. The host domain,
     /// session state, and the host's transports are the host's.
@@ -21225,6 +21253,9 @@ mod tests {
             assert_eq!(emitted.len(), 1, "key {key}");
             expect_status(&emitted[0], TID_UNSOLICITED, Status::NOT_PERMITTED);
             assert!(!admin_writable(key), "key {key}");
+            // Whoever holds the device, through its own screen or a wired
+            // application, still may.
+            assert!(device_writable(key), "key {key}");
         }
     }
 

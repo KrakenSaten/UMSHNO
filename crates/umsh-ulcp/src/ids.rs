@@ -1092,11 +1092,19 @@ pub fn admin_writable(key: u32) -> bool {
 /// session state belong to whichever host is tethered, and an exchange
 /// that is not an attach has no session to configure. The one difference
 /// is the device identity, which whoever is holding the device may
-/// install, by the authority of physical possession. The other is
-/// `PROP_UART_WINDOW`, which belongs to the link an application is wired
-/// over; the session refuses it where that link is not a UART.
+/// install, by the authority of physical possession, and Bluetooth
+/// pairing, by the same authority. The other is `PROP_UART_WINDOW`, which
+/// belongs to the link an application is wired over; the session refuses
+/// it where that link is not a UART.
 pub fn device_writable(key: u32) -> bool {
-    matches!(key, prop::DEV_PRIVATE_KEY | prop::UART_WINDOW) || admin_writable(key)
+    matches!(
+        key,
+        prop::DEV_PRIVATE_KEY
+            | prop::UART_WINDOW
+            | prop::BLE_BOND_COUNT
+            | prop::BLE_PAIRING
+            | prop::BLE_PAIRING_PIN
+    ) || admin_writable(key)
 }
 
 /// `PROP_SOUND_VOLUME` after a reset.
