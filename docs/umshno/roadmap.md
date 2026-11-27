@@ -68,9 +68,28 @@ Principles for every milestone:
   CI.
 
 - **Progress (2026-11-27, branch `m1-trusted-baseline`):** Windows host build and CI job
-  done; S1, S4, S5, and S6 (X25519) fixed with regression tests; S2 reproduced and deferred
+  done; S1, S5, and S6 (X25519) fixed and S4 mitigated (residual: reset into the first-boot window), each with regression tests; S2 reproduced and deferred
   to a UEP-0007 discussion; dependency review in [dependencies.md](dependencies.md). Remaining:
   mirroring the forked dependencies (needs new repositories), `cargo-deny`, and the S3 plan.
+
+#### Protocol behavior changes in M1
+
+One change alters what a device does in response to a protocol message, with no change to
+the wire format:
+
+- **Administrative binding refuses Bluetooth pairing writes.** `PROP_BLE_BOND_COUNT`,
+  `PROP_BLE_PAIRING`, and `PROP_BLE_PAIRING_PIN` join `PROP_DEV_PRIVATE_KEY` in the set a
+  mesh administrator may not write, answered with the existing `STATUS_NOT_PERMITTED`
+  (`docs/protocol-legacy/src/app-node-management.md`, "The mesh administrative binding").
+  The device's own interface keeps them.
+  - *Justification:* a bond grants the local binding, which may install a device
+    identity, so these writes let an administrator exceed its binding (security finding S4).
+  - *Compatibility:* UMSHNO and upstream nodes still interoperate. A client managing a
+    UMSHNO device over the mesh sees a refusal it already handles; upstream devices
+    behave as before.
+  - *Migration:* none needed; nothing persisted changes.
+  - *Upstream:* to be proposed to UMSH with the fix, as an amendment to the node
+    management specification.
 
 ### M2: Hardware verification loop
 

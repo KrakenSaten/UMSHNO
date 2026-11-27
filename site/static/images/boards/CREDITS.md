@@ -30,6 +30,7 @@ The iOS `board-thinknode-m6` image set (Elecrow ThinkNode M6) is not a
 photograph: it is a plain placeholder illustration drawn for UMSHNO, so the
 apps' board catalog has an image for every board. Replace it with a product
 photo whose source can be recorded here.
+
 The website preserves the supplied product images; the app versions are resized
 onto transparent canvases.
 

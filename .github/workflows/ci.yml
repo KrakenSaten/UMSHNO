@@ -149,11 +149,6 @@ jobs:
             exit 1
           fi
 
-  # The region database's Python compiler and its cross-implementation
-  # conformance. Everything here runs on the committed tree: the fixture
-  # database is a build output that lives in the repository, so CI checks that
-  # it still matches its source rather than compiling a global database on
-  # every push.
   # The host workspace on Windows, through the same script a Windows
   # developer runs: each default member in a build of its own, because
   # built together the board support crates' embassy-time reaches every
@@ -197,6 +192,11 @@ jobs:
       - name: cargo fuzz build
         run: make fuzz-build
 
+  # The region database's Python compiler and its cross-implementation
+  # conformance. Everything here runs on the committed tree: the fixture
+  # database is a build output that lives in the repository, so CI checks that
+  # it still matches its source rather than compiling a global database on
+  # every push.
   regions:
     name: region database
     runs-on: ubuntu-latest

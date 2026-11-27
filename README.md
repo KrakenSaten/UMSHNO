@@ -170,7 +170,7 @@ works: MSVC (the default, which needs the Visual Studio Build Tools) or
 `x86_64-pc-windows-gnu` with a MinGW-w64 GCC on `PATH`. With the GNU toolchain, keep
 `RUSTUP_HOME` and `CARGO_HOME` on a path without non-ASCII characters (for example
 `C:\Rust\rustup` and `C:\Rust\cargo`): MinGW's linker cannot open files under a profile
-directory such as `C:\Users\André`.
+directory such as `C:\Users\Zoë`.
 
 Run the host tests through the script, not `cargo test` directly:
 
