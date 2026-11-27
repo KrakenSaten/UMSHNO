@@ -1,4 +1,11 @@
-# UMSHNO
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/umshno-logo-dark.png">
+    <img alt="UMSHNO" src="docs/logo/umshno-logo-light.png" width="480">
+  </picture>
+</h1>
+
+*Secure LoRa mesh communications.*
 
 \[ [Roadmap](docs/umshno/roadmap.md)
 | [Technical assessment](docs/umshno/assessment.md)

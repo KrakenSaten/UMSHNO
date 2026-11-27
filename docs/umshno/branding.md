@@ -7,6 +7,29 @@ The rule: **a name that a device, an install, or another UMSH node depends on ke
 current value until an ADR gives a migration that cannot lose an identity, a key, or a
 setting.** Project-level prose, documentation, and metadata change freely.
 
+## Visual identity
+
+The UMSHNO mark is a hexagon of six mesh nodes around an "N", with radio waves on four
+sides. The tagline is "Secure LoRa mesh communications". Files are in `docs/logo/`:
+
+| File | Use |
+|---|---|
+| `umshno-logo-dark.png` | Horizontal lockup on navy, for dark backgrounds |
+| `umshno-logo-light.png` | Horizontal lockup on white, for light backgrounds |
+| `umshno-app-icon.png` | Rounded-square icon (raster source for future app icons) |
+| `umshno-brand-sheet.png` | The original brand sheet these were cropped from |
+
+| Color | Hex |
+|---|---|
+| Signal orange | `#FF8904` |
+| Navy | `#111D2B` |
+| Mist | `#ACC4CE` |
+
+These are raster crops. Before the mark goes onto devices or into app stores, it needs a
+vector master (SVG) and a 1-bit version for the communicator's splash screen
+(`crates/umsh-splash`) and the monochrome displays. Upstream's UMSH logo files in
+`docs/logo/` stay, since they identify the protocol.
+
 ## Changed
 
 | Item | From | To |

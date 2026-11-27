@@ -60,6 +60,25 @@ Importing upstream work:
 Work worth sending back to UMSH (bug fixes, board support) goes as a pull request from the
 `KrakenSaten/umsh` fork, branched from `upstream/main`, so it carries no UMSHNO branding.
 
+## GitHub repository
+
+`KrakenSaten/umsh` is a GitHub fork of `darconeous/umsh` (no stars, forks, issues, or open
+pull requests of its own). Options for `KrakenSaten/UMSHNO`:
+
+| Option | Independent | History | Upstream PRs | Reversible |
+|---|---|---|---|---|
+| **A. New repository, push full history** | Yes | Complete: every branch and tag pushed | Keep sending them from the existing `KrakenSaten/umsh` fork | Yes: delete the new repository |
+| B. Rename the fork to `UMSHNO` | No: still labeled "forked from darconeous/umsh", PRs default to upstream as base | Complete | From the same repository | Yes |
+| C. Ask GitHub Support to detach the fork, then rename | Yes | Complete | Need a new fork for upstream PRs | No: a detached fork cannot be reattached |
+
+**Recommendation: A.** Create `KrakenSaten/UMSHNO` as a new, empty, public repository (no
+README or license, so the first push does not conflict), push `umshno/foundation` as its
+`main` along with the upstream tags, and keep `KrakenSaten/umsh` as the fork used only for
+upstream contributions. Nothing is lost, it can be undone, and both relationships stay
+clear. Before the first push, decide whether the CI workflow should run (it uses macOS
+runners for iOS, free for public repositories) and whether the `fw-*` tags belong to UMSHNO's
+release namespace, since they name upstream releases.
+
 ## Divergence log
 
 | Change | Wire-compatible | Notes |
