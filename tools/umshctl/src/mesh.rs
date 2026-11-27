@@ -151,8 +151,9 @@ fn create_owner_only(path: &Path, secret: &[u8]) -> std::io::Result<()> {
     file.sync_all()
 }
 
-/// Windows: the state directory is under the user's profile, whose access
-/// list already admits only its owner.
+/// Windows: no access list is set here. The file inherits its
+/// directory's, which is owner-only under the user's profile but is
+/// whatever `HOME` or `XDG_STATE_HOME` points at otherwise.
 #[cfg(not(unix))]
 fn create_owner_only(path: &Path, secret: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
@@ -166,7 +167,10 @@ fn create_owner_only(path: &Path, secret: &[u8]) -> std::io::Result<()> {
 }
 
 /// An identity seed an earlier version wrote readable by others keeps its
-/// key, and loses the extra readers.
+/// key, and loses the extra readers. Where its mode cannot be changed (a
+/// file owned by someone else, a share that ignores modes), the identity
+/// still loads and the user is warned: refusing it would lock them out of
+/// every device that lists it.
 #[cfg(unix)]
 fn restrict_to_owner(path: &Path) -> Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
@@ -176,9 +180,15 @@ fn restrict_to_owner(path: &Path) -> Result<()> {
         .permissions()
         .mode();
     if mode & 0o077 != 0 {
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-            .with_context(|| format!("restricting {}", path.display()))?;
-        note("the administrator identity was readable by others; it is now its owner's only");
+        match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+            Ok(()) => note(
+                "the administrator identity was readable by others; it is now its owner's only",
+            ),
+            Err(error) => crate::output::warn(format!(
+                "{} is readable by others and could not be restricted ({error});                  run `chmod 600` on it",
+                path.display()
+            )),
+        }
     }
     Ok(())
 }
