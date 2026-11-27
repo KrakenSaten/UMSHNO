@@ -42,6 +42,17 @@ impl Clock for SystemClock {
             })
     }
 
+    #[cfg(windows)]
+    fn monotonic_ms(&self) -> i64 {
+        // The tick count counts sleep and hibernation, in milliseconds.
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            safe fn GetTickCount64() -> u64;
+        }
+        i64::try_from(GetTickCount64()).unwrap_or(i64::MAX)
+    }
+
+    #[cfg(not(windows))]
     fn monotonic_ms(&self) -> i64 {
         // Darwin's raw clock (Swift's continuous clock) and Linux's boot
         // time both count sleep; Linux's plain monotonic clock does not.
@@ -89,6 +100,22 @@ impl Clock for SystemClock {
                 tokio::time::sleep(Duration::from_millis(remaining).min(SLEEP_SLICE)).await;
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Clock, SystemClock};
+
+    /// The system's monotonic clock reads, never goes back, and is past
+    /// its origin on every platform the core builds for.
+    #[test]
+    fn the_system_monotonic_clock_moves_forward() {
+        let first = SystemClock.monotonic_ms();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let second = SystemClock.monotonic_ms();
+        assert!(first > 0);
+        assert!(second >= first + 10, "{first} then {second}");
     }
 }
 

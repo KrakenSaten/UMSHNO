@@ -245,16 +245,24 @@ impl CounterFiles {
         if !self.root.exists() {
             return Ok(());
         }
-        File::open(&self.root)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|_| CounterStoreError::IoFailure)
+        sync_directory(&self.root).map_err(|_| CounterStoreError::IoFailure)
+    }
+
+    /// Whether a record that could not be read is simply not there yet.
+    ///
+    /// A file where the directory belongs is not an absent record but an
+    /// unusable store: POSIX reports reading through it as "not a
+    /// directory", but Windows reports it as "not found", so the root is
+    /// checked rather than trusting the error's kind.
+    fn is_absent(&self, error: &std::io::Error) -> bool {
+        error.kind() == std::io::ErrorKind::NotFound && !self.root.is_file()
     }
 
     fn load_boundary_unlocked(&self, context: &[u8]) -> Result<u32, CounterStoreError> {
         let path = self.record_path(context)?;
         let mut file = match File::open(path) {
             Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) if self.is_absent(&error) => return Ok(0),
             Err(_) => return Err(CounterStoreError::IoFailure),
         };
         let mut record = Vec::new();
@@ -282,7 +290,7 @@ impl CounterFiles {
     ) -> Result<Vec<u8>, CounterStoreError> {
         match fs::read(self.forward_secrecy_path(node)) {
             Ok(records) => Ok(records),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) if self.is_absent(&error) => Ok(Vec::new()),
             Err(_) => Err(CounterStoreError::IoFailure),
         }
     }
@@ -301,9 +309,7 @@ impl CounterFiles {
         // Keeping nothing is having no file: nothing is written, and the
         // directory is not made, for a node that never held a session.
         match fs::remove_file(&path) {
-            Ok(()) => File::open(&self.root)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|_| CounterStoreError::IoFailure),
+            Ok(()) => sync_directory(&self.root).map_err(|_| CounterStoreError::IoFailure),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(_) => Err(CounterStoreError::IoFailure),
         }
@@ -348,9 +354,7 @@ impl CounterFiles {
 
             fs::rename(&temporary, destination).map_err(|_| CounterStoreError::IoFailure)?;
             fail_at(failpoint, CommitStage::Renamed)?;
-            File::open(&self.root)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|_| CounterStoreError::IoFailure)?;
+            sync_directory(&self.root).map_err(|_| CounterStoreError::IoFailure)?;
             Ok(())
         })();
 
@@ -439,6 +443,19 @@ enum CommitStage {
     Written,
     FileSynced,
     Renamed,
+}
+
+/// Make a rename or removal in `directory` durable.
+///
+/// POSIX makes a directory entry durable by synchronizing the directory.
+/// Windows cannot open a directory as a file to synchronize it, and needs
+/// no such step: NTFS journals the rename itself.
+fn sync_directory(directory: &Path) -> std::io::Result<()> {
+    #[cfg(not(windows))]
+    File::open(directory)?.sync_all()?;
+    #[cfg(windows)]
+    let _ = directory;
+    Ok(())
 }
 
 fn fail_at(requested: Option<CommitStage>, current: CommitStage) -> Result<(), CounterStoreError> {
