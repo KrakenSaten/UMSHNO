@@ -154,6 +154,25 @@ jobs:
   # database is a build output that lives in the repository, so CI checks that
   # it still matches its source rather than compiling a global database on
   # every push.
+  # The host workspace on Windows, through the same script a Windows
+  # developer runs: each default member in a build of its own, because
+  # built together the board support crates' embassy-time reaches every
+  # test binary, and a PE image must resolve its driver's symbols. See
+  # scripts/host_test.py.
+  windows:
+    name: host tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Host tests
+        run: python scripts/host_test.py --locked
+
   # The wrappers build on the nightly fuzz/rust-toolchain.toml pins, so an API
   # change that breaks one fails here rather than in the night's fuzzing. No
   # fuzzing runs on a pull request: `cargo test` above already replays every
