@@ -402,6 +402,10 @@ aren't rustfmt-clean in either workspace:
 git config core.hooksPath .githooks
 ```
 
+CI runs only the jobs a change affects (`scripts/ci_changes.py`), and **CI result** is the
+check that must pass. Run the whole matrix, ESP32 firmware included, from Actions → CI → Run
+workflow.
+
 Protocol changes follow the UEP process in [`docs/protocol/`](docs/protocol/) and should be
 proposed upstream as well, so UMSH and UMSHNO stay one protocol. Fixes that apply to UMSH are
 worth sending upstream; [UPSTREAM.md](UPSTREAM.md) describes how.
