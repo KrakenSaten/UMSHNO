@@ -67,6 +67,11 @@ Principles for every milestone:
   concrete remote or power-loss attack), then S2, S5, and S6, then the dependency mirrors and
   CI.
 
+- **Progress (2026-11-27, branch `m1-trusted-baseline`):** Windows host build and CI job
+  done; S1, S4, S5, and S6 (X25519) fixed with regression tests; S2 reproduced and deferred
+  to a UEP-0007 discussion; dependency review in [dependencies.md](dependencies.md). Remaining:
+  mirroring the forked dependencies (needs new repositories), `cargo-deny`, and the S3 plan.
+
 ### M2: Hardware verification loop
 
 - **Objective:** know that each supported board works, and keep knowing it.

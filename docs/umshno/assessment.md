@@ -151,9 +151,12 @@ collect field diagnostics from users.
 - **Gaps:** no hardware-in-the-loop; board BSPs largely untested; Android instrumented tests
   and ESP32 builds do not gate pull requests; no multi-node simulation; no on-air
   performance measurements (airtime per delivered message, delivery ratio).
-- **Windows:** `umsh-mobile-core` does not build on Windows (`libc::clock_gettime` in
-  `app_core/clock.rs`, and `rusqlite` without `bundled`). Because it is a default workspace
-  member, `cargo test` fails on Windows. UMSHNO develops on Windows, so this matters.
+- **Windows (fixed in M1):** the host workspace builds and its tests run on Windows through
+  `scripts/host_test.py`, which tests each default member in a build of its own, and a
+  Windows CI job runs it. Built together, the default members' `embassy-time` (turned on by
+  the nRF52840 board support crates) reaches every test binary, and a Windows PE image must
+  resolve its driver's symbols, which Linux's linker drops as dead code. `umsh-ulcp-admin`'s
+  tests are the one default member that cannot link on Windows and are left to Linux CI.
 
 ## Security review
 
@@ -197,6 +200,21 @@ protection when `umshctl-admin.counters` is lost.
 
 S1, S2, S4, and S6 apply to upstream UMSH as well and should be reported there.
 
+### Status after M1
+
+Each finding was reproduced independently before it was fixed; each fix has a regression
+test that failed before the change.
+
+| ID | Status | Where |
+|---|---|---|
+| S1 | **Fixed.** A peer's first baseline is written at the next pass; a power-loss replay test covers it. | `crates/umsh-mac/src/rx_windows.rs` |
+| S2 | **Confirmed, deferred.** Reproduced: after 64 other channel frames, a replay of the first is delivered again. The behavior is the specified one (UEP-0007 accepts unsigned replays once the cache forgets; the coordinator deliberately judges unsigned frames by nothing their claimed source holds), so a fix changes receiver processing and needs a UEP-0007 amendment discussed upstream. Candidate: a reject-only check against the claimed source's existing window, never advanced by unsigned frames. Until then, applications must not act on unsigned channel traffic as if it were fresh. | Design |
+| S3 | **Open.** Needs the APPROTECT and flash-encryption plan (DFU, recovery, support) before any image locks debug access. | Roadmap M6 |
+| S4 | **Fixed.** The three Bluetooth pairing properties are no longer writable by a mesh administrator; the spec says so. Remote "forget phones" over the mesh is now refused. | `crates/umsh-ulcp/src/ids.rs`, `docs/protocol-legacy/src/app-node-management.md` |
+| S5 | **Fixed.** New seeds are created 0600 at open; an existing exposed seed is tightened and keeps its identity. | `tools/umshctl/src/mesh.rs` |
+| S6 | **Fixed for X25519.** `x25519-dalek`'s zeroize feature is on. `ChannelKey` is still `Copy` without zeroization: a wider change, left for its own pull request. | `Cargo.toml`, `crates/umsh-crypto` |
+| S7–S9 | **Open.** Low severity; not in M1's scope. | |
+
 ## Technical debt, ranked
 
 1. Security findings S1, S2, S4 (code fixes) and S3 (release hardening).
@@ -207,6 +225,6 @@ S1, S2, S4, and S6 apply to upstream UMSH as well and should be reported there.
 5. Duplicated per-board manifests (nRF52 copies the feature table; ESP32 needs a drift
    checker).
 6. Stale plan documents (LAN bearer, MeshCore forwarder, text chat engine, shipping matrix).
-7. Windows host build broken.
+7. Windows host tests need per-crate builds (feature unification with `embassy-time`).
 8. ThinkNode M6 release and site integration missing.
 9. Forked dependencies hosted on the upstream maintainer's account.
