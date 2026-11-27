@@ -1841,11 +1841,32 @@ async fn sent(core: &Core, owner: &str, peer: &str) -> MobileStoredChatMessageRe
         .send_chat(peer.to_owned(), typed("Trailhead at noon"), None)
         .await
         .unwrap();
-    let message = messages(core, owner, peer)
-        .into_iter()
-        .find(|message| message.outbound)
-        .unwrap()
-        .reference;
+    // Wait for the pipeline to fail it before marking it delivered: written
+    // first, the delivery state would be overwritten by the pipeline's
+    // failure landing after it, and the message would no longer take a
+    // reaction or a reply.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let message = loop {
+        let ours = messages(core, owner, peer)
+            .into_iter()
+            .find(|message| message.outbound)
+            .unwrap();
+        if matches!(
+            ours.delivery_state,
+            Some(
+                crate::store::MobileStoredChatDeliveryState::Failed
+                    | crate::store::MobileStoredChatDeliveryState::Undelivered
+            )
+        ) {
+            break ours.reference;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "never: the pipeline settles the message ({:?})",
+            ours.delivery_state
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    };
     rusqlite::Connection::open(core.directory.path().join("app.sqlite"))
         .unwrap()
         .execute(
