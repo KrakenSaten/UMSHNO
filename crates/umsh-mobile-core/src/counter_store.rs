@@ -250,12 +250,12 @@ impl CounterFiles {
 
     /// Whether a record that could not be read is simply not there yet.
     ///
-    /// A file where the directory belongs is not an absent record but an
-    /// unusable store: POSIX reports reading through it as "not a
+    /// A file where the directory, or one above it, belongs is not an
+    /// absent record but an unusable store: POSIX reports reading through it as "not a
     /// directory", but Windows reports it as "not found", so the root is
     /// checked rather than trusting the error's kind.
     fn is_absent(&self, error: &std::io::Error) -> bool {
-        error.kind() == std::io::ErrorKind::NotFound && !self.root.is_file()
+        error.kind() == std::io::ErrorKind::NotFound && !self.root.ancestors().any(Path::is_file)
     }
 
     fn load_boundary_unlocked(&self, context: &[u8]) -> Result<u32, CounterStoreError> {
@@ -352,7 +352,7 @@ impl CounterFiles {
             fail_at(failpoint, CommitStage::FileSynced)?;
             drop(file);
 
-            fs::rename(&temporary, destination).map_err(|_| CounterStoreError::IoFailure)?;
+            replace_durably(&temporary, destination).map_err(|_| CounterStoreError::IoFailure)?;
             fail_at(failpoint, CommitStage::Renamed)?;
             sync_directory(&self.root).map_err(|_| CounterStoreError::IoFailure)?;
             Ok(())
@@ -448,14 +448,57 @@ enum CommitStage {
 /// Make a rename or removal in `directory` durable.
 ///
 /// POSIX makes a directory entry durable by synchronizing the directory.
-/// Windows cannot open a directory as a file to synchronize it, and needs
-/// no such step: NTFS journals the rename itself.
+/// Windows cannot open a directory as a file to synchronize it; there the
+/// rename that matters is made durable by [`replace_durably`] itself, and a
+/// removal (only of forward-secrecy records, which hold public keys) is
+/// left to the file system.
 fn sync_directory(directory: &Path) -> std::io::Result<()> {
     #[cfg(not(windows))]
     File::open(directory)?.sync_all()?;
     #[cfg(windows)]
     let _ = directory;
     Ok(())
+}
+
+/// Rename `from` over `to`. On Windows the move is write-through, so it
+/// returns only once the new record is on disk: a plain rename there is
+/// journaled for consistency but may be lost by a power cut, which would
+/// bring an older counter boundary back.
+fn replace_durably(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(not(windows))]
+    {
+        fs::rename(from, to)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt as _;
+
+        const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+        const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+        }
+        let wide = |path: &Path| {
+            path.as_os_str()
+                .encode_wide()
+                .chain(core::iter::once(0))
+                .collect::<Vec<u16>>()
+        };
+        let (from, to) = (wide(from), wide(to));
+        // SAFETY: both are NUL-terminated wide strings that outlive the call.
+        let moved = unsafe {
+            MoveFileExW(
+                from.as_ptr(),
+                to.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        };
+        if moved == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
 }
 
 fn fail_at(requested: Option<CommitStage>, current: CommitStage) -> Result<(), CounterStoreError> {
