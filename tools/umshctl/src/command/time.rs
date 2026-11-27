@@ -238,6 +238,9 @@ mod tests {
         assert_eq!(format_tz(-30), "UTC-00:30");
     }
 
+    // Windows keeps no /etc/localtime; there the zone is given with
+    // `time tz set`, as the error says.
+    #[cfg(unix)]
     #[test]
     fn the_host_zone_is_a_rule() {
         let rule = host_rule().expect("a host has a time zone");

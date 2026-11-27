@@ -45,7 +45,7 @@ impl Deployment {
     fn client(&self, tunnel: SocketAddr) -> String {
         let d = self.dir.display();
         format!(
-            "[identity]\nkey_file = \"{d}/cabin.key\"\n\
+            "[identity]\nkey_file = '{d}/cabin.key'\n\
              [client]\nserver = \"{tunnel}\"\n\
              server_address = \"{}\"\n\
              [client.radio]\ntype = \"udp-multicast\"\ngroup = \"{SEGMENT_B}\"\n\
@@ -76,7 +76,7 @@ fn deployment(dir: &Path, extra_limits: &str) -> Deployment {
 
     Deployment {
         server: format!(
-            "[identity]\nkey_file = \"{d}/identity.key\"\n\
+            "[identity]\nkey_file = '{d}/identity.key'\n\
              [server]\nlisten = [\"127.0.0.1:0\"]\n\
              [server.radio]\ntype = \"udp-multicast\"\ngroup = \"{SEGMENT_A}\"\n\
              port = {server_port}\n{extra_limits}\
@@ -355,7 +355,7 @@ async fn serve_tunnel_only(dir: &Path) -> SocketAddr {
         .to_string();
     let d = dir.display();
     serve(&format!(
-        "[identity]\nkey_file = \"{d}/identity.key\"\n\
+        "[identity]\nkey_file = '{d}/identity.key'\n\
          [server]\nlisten = [\"127.0.0.1:0\"]\n\
          [[server.clients]]\nname = \"cabin\"\naddress = \"{cabin}\"\n"
     ))
@@ -694,7 +694,7 @@ fn host_only_deployment(dir: &Path, limits: (u32, u32)) -> String {
     umsh_bridge::keygen::write_identity(&dir.join("identity.key"), false).unwrap();
     let d = dir.display();
     format!(
-        "[identity]\nkey_file = \"{d}/identity.key\"\n\
+        "[identity]\nkey_file = '{d}/identity.key'\n\
          [server]\nlisten = [\"127.0.0.1:0\"]\n\
          [[server.hosts]]\nname = \"alice\"\nlisten = \"127.0.0.1:0\"\n\
          max_frames_per_minute = {}\n\
