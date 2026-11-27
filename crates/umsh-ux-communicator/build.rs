@@ -1375,7 +1375,9 @@ fn limited_lengths(counts: &[u64; 16], limit: usize) -> [u8; 16] {
     let mut packages = leaves.clone();
     for _ in 1..limit {
         let mut merged: Vec<(u64, Vec<usize>)> = packages
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let mut symbols = pair[0].1.clone();
                 symbols.extend(&pair[1].1);
