@@ -305,7 +305,7 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        _ => window(board, backend, &format!("UMSH communicator — {name}")),
+        _ => window(board, backend, &format!("UMSHNO communicator — {name}")),
     }
 }
 

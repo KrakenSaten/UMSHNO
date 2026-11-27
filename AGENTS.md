@@ -1,20 +1,36 @@
-# UMSH
+# UMSHNO
 
-Experimental, LoRa-oriented mesh protocol with strong cryptography, strict layer
-separation, and tight bandwidth discipline. Inspired by MeshCore but redesigned:
-endpoints are identified by Ed25519 public keys, multicast uses shared symmetric
-channel keys, and the MAC layer is timestamp-free (monotonic frame counters for
-replay protection) with AES-SIV (RFC 5297) nonce-misuse-resistant encryption. The repo
-holds the protocol **spec**, a Rust **reference implementation**, embedded
-**firmware** for several LoRa boards, an **iOS app**, and a **Wireshark dissector**.
+UMSHNO is an independently maintained LoRa mesh communication platform built on UMSH
+(upstream: `github.com/darconeous/umsh`), and it speaks the UMSH protocol unchanged. UMSH is an
+experimental, LoRa-oriented mesh protocol with strong cryptography, strict layer separation, and
+tight bandwidth discipline. Inspired by MeshCore but redesigned: endpoints are identified by
+Ed25519 public keys, multicast uses shared symmetric channel keys, and the MAC layer is
+timestamp-free (monotonic frame counters for replay protection) with AES-SIV (RFC 5297)
+nonce-misuse-resistant encryption. The repo holds the protocol **spec**, a Rust **reference
+implementation**, embedded **firmware** for several LoRa boards, **Android** and **iOS apps**,
+and a **Wireshark dissector**.
 
 Spec: `docs/protocol-legacy/` (mdBook), being reorganized into numbered UMSH Extension Protocols
 (UEPs) in `docs/protocol/`—UEP-0001 is the process, and the index there is the road map. Everything here was written with heavy LLM
 assistance and is explicitly experimental—expect code smells and WIP APIs.
 
-There is no significant installed user base, so versioning and migration are a matter
-of immediate convenience and not mandatory at this time. Carefully weigh the design
-costs of migration before considering implementing it.
+UMSHNO's own direction: `docs/umshno/roadmap.md` (milestones) and `docs/umshno/assessment.md`
+(engineering assessment). How UMSHNO relates to upstream, and how to import upstream work:
+`UPSTREAM.md`.
+
+## Compatibility rules (UMSHNO)
+
+- **UMSHNO is the project; UMSH is the protocol.** Never rename crates, wire constants, KDF
+  labels, URI prefixes, GATT UUIDs, storage namespaces, app or bundle IDs, or binary names for
+  branding. `docs/umshno/branding.md` lists each one and why it stays.
+- **Wire compatibility with upstream UMSH is the default.** An incompatible change needs a
+  UEP, an explicit justification, and a migration strategy, in its own section of the plan.
+- **Persisted state is sacred.** A change must never silently lose a node identity, a key, a
+  frame counter, or a setting on an existing device or install. Changing a storage layout,
+  namespace, or path requires a migration that is tested before it lands. (Upstream UMSH
+  treats migration as optional because it has no significant installed base; UMSHNO does not.)
+- **Stay mergeable.** Prefer changes that keep `git merge upstream/main` cheap: no
+  repository-wide renames or reformatting, and new UMSHNO material in new files where practical.
 
 ## Repository layout
 
@@ -22,7 +38,7 @@ costs of migration before considering implementing it.
   `umsh-hal` is standalone (no workspace deps); `umsh-bsp-*` are board support over a
   shared `nrf52840` base.
 - `umsh/`—umbrella crate re-exporting the workspace; defines the `Platform` trait + Tokio/Embassy adapters. **Library only**—host binaries live in `tools/`, which is what keeps clap/rustyline out of the umbrella's dependency tree.
-- `firmware/`—nRF52840 firmware (thumbv7em, UF2/DFU). **One shipping image per board** (t1000e / techo / sensecap-solar / wio-tracker-l1 / xiao-nrf52)—there is no separate repeater build; role is configuration. All five are thin manifests over the shared `firmware/nrf52-tracker/src/main.rs`, differing only by their `board-*` feature.
+- `firmware/`—nRF52840 firmware (thumbv7em, UF2/DFU). **One shipping image per board** (t1000e / techo / sensecap-solar / wio-tracker-l1 / xiao-nrf52 / thinknode-m6)—there is no separate repeater build; role is configuration. All six are thin manifests over the shared `firmware/nrf52-tracker/src/main.rs`, differing only by their `board-*` feature.
 - `firmware-esp32/`—**separate cargo workspace** for Xtensa boards (Heltec LoRa32 V2 and V3, LILYGO T-Beam Supreme and T-LoRa Pager, Seeed XIAO ESP32S3 kit). See `firmware-esp32/CLAUDE.md` for its toolchain. The device images are thin manifests over `firmware/esp32-tracker/src/main.rs` that each carry a copy of one feature table; `scripts/check_esp32_manifests.py` holds the copies in step. The Heltec V3 alone has a second image, `heltec-v3-bridge` (Wi-Fi + bridge client, no BLE): the two do not fit in its RAM together. It is one board with two images, never two boards—on the site it is a firmware choice under the V3's entry.
 - `apps/ios/`—SwiftUI app; `packages/UMSHMobileCore`—UniFFI Swift package.
 - `tools/`—host binaries and dev tooling (`crates/` is reserved for library crates):

@@ -17,7 +17,13 @@ const INSET: u32 = 12;
 
 /// The firmware's parts, each with its license, ahead of the crates.
 const PARTS: [(&str, &str); 4] = [
-    ("UMSH", "MIT OR Apache-2.0\numsh.dev"),
+    (
+        "UMSHNO",
+        "Built on UMSH by Robert Quattlebaum\n\
+         MIT OR Apache-2.0\n\
+         github.com/KrakenSaten/UMSHNO\n\
+         umsh.dev",
+    ),
     (
         "Twemoji",
         "\u{A9} 2014\u{2013}2021 Twitter\n\

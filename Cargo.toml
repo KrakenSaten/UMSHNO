@@ -151,7 +151,7 @@ codegen-units = 1
 edition = "2024"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/darconeous/umsh"
+repository = "https://github.com/KrakenSaten/UMSHNO"
 
 # Override dependencies for the two audited forks carried by UMSH. Trouble is
 # pinned to the pairing-policy gate revision; nrf-sdc/nrf-mpsl are pinned to the

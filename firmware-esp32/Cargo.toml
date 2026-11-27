@@ -30,7 +30,7 @@ resolver = "2"
 edition = "2024"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/darconeous/umsh"
+repository = "https://github.com/KrakenSaten/UMSHNO"
 
 # Replicated from the root workspace manifest—[patch] tables do not cross
 # workspace boundaries. The trouble-host rev must stay in lockstep with the

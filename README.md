@@ -1,31 +1,44 @@
-![UMSH Logo](docs/logo/umsh-logo-orange-sm.png)
+# UMSHNO
 
-\[ [`umsh.dev`](https://umsh.dev)
-| [Protocol Book](https://darconeous.github.io/umsh/docs/protocol/)
-| [Rustdocs](https://darconeous.github.io/umsh/docs/rust/)
+\[ [Roadmap](docs/umshno/roadmap.md)
+| [Technical assessment](docs/umshno/assessment.md)
+| [Upstream and attribution](UPSTREAM.md)
+| [UMSH protocol book](https://darconeous.github.io/umsh/docs/protocol/)
 \]
 
-**UMSH** is an experimental, LoRa-oriented mesh protocol designed from the ground up with strong cryptography, clean layer separation, and strict bandwidth discipline. The primary use case it enables is decentralized, wide-area text chat and location/sensor reporting.
+**UMSHNO** is an open-source LoRa mesh communication platform: firmware for nRF52840 and
+ESP32-S3 radios, Android and iOS apps, repeaters, internet bridges, and diagnostics, built
+for secure, reliable, decentralized text messaging and location and sensor reporting without
+any cloud service.
+
+UMSHNO is built on [UMSH](https://github.com/darconeous/umsh), the protocol and reference
+implementation created by Robert Quattlebaum. **UMSHNO speaks the UMSH protocol unchanged**:
+UMSHNO and UMSH nodes share one mesh. Internal crate, protocol, and storage names keep
+their `umsh` spelling, so existing devices and installs keep their identities and settings.
+[UPSTREAM.md](UPSTREAM.md) explains what UMSHNO renames and what it does not, and how UMSHNO
+tracks upstream.
 
 ![An animation of the T-Deck's interface: scrolling down the chat list to open a conversation, replying to an earlier message with text and an emoji from the character picker, sending it, and a heart reaction arriving on it.](site/static/images/blog/so-much-for-taking-a-break/tdeck-send.gif)
 
 *Replying to a message on a T-Deck communicator.*
 
-Originally intended as a proposal for a "[MeshCore](https://github.com/meshcore-dev/MeshCore) 2.0", UMSH grew out of a simple question: what would a cryptographically addressed LoRa mesh protocol look like with proper security and clean architecture as primary design goals? Inspired by [MeshCore](https://github.com/meshcore-dev/MeshCore), it started as a thought experiment addressing the [critical shortcomings](https://darconeous.github.io/umsh/docs/protocol/meshcore-comparison.html#cryptography) in that protocol that would practically require backward-incompatible changes to fix. What began as a toy protocol has since been developed into a [comprehensive specification](https://darconeous.github.io/umsh/docs/protocol/), a reference implementation, firmware for a range of nRF52840 and ESP32-S3 boards (including handheld communicators that need no phone), and an iOS app.
+UMSH began as a proposal for a "[MeshCore](https://github.com/meshcore-dev/MeshCore) 2.0":
+a cryptographically addressed LoRa mesh with proper security and clean architecture as primary
+design goals, addressing the
+[shortcomings](https://darconeous.github.io/umsh/docs/protocol/meshcore-comparison.html#cryptography)
+that would need backward-incompatible changes to fix in MeshCore. UMSHNO's goal is to turn that
+foundation into a dependable, everyday alternative to MeshCore and Meshtastic, putting
+correctness, security hardening, delivery reliability, and usable apps ahead of protocol
+growth. See the [roadmap](docs/umshno/roadmap.md).
 
 > [!NOTE]
-> Practically all of the content in this repository was written with the assistance of an LLM.
-> For more details, see [`docs/AI.md`](docs/AI.md). This project would not exist without
-> LLM coding assistance, as the amount of work required to write this by hand would be too much
-> for me to dedicate to unpaid work.
->
-> It has taken considerable effort to get it to this point. If you'd like to tag along
-> for the ride and see where this ends up going, follow the project on GitHub to see
-> updates. I'd also love to hear your feedback!
+> UMSHNO is experimental. Like upstream UMSH, most of this code was written with LLM
+> assistance (see [`docs/AI.md`](docs/AI.md)), and UMSHNO continues that practice with review.
+> Expect rough edges and evolving APIs.
 
 ---
 
-## What makes UMSH interesting
+## What makes the UMSH protocol interesting
 
 ### Public-key node identity
 
@@ -91,6 +104,7 @@ traffic.
 | [`umsh/`](umsh/) | Integration crate with runtime adapters and runnable examples |
 | [`firmware/`](firmware/) | nRF52840 device firmware—one shipping image per board—and the simulator communicator |
 | [`firmware-esp32/`](firmware-esp32/) | Separate workspace for Espressif boards, which need the Xtensa toolchain |
+| [`apps/android/`](apps/android/) | Native Android application (Kotlin, Jetpack Compose) |
 | [`apps/ios/`](apps/ios/) | SwiftUI iOS application |
 | [`packages/UMSHMobileCore`](packages/) | UniFFI Swift package wrapping the Rust core for the app |
 | [`tools/`](tools/) | Host tools—the `umshctl` radio tool, the browser-based ULCP debugger, the region-database compiler, and the UniFFI binding generator |
@@ -117,14 +131,13 @@ runtime adapters. Rendered copies of both are published at
 
 ### Try it
 
-You don't need to build anything to try UMSH:
+UMSHNO has not published releases of its own yet. Until it does, firmware built from this
+repository and upstream UMSH releases interoperate on the air:
 
-- **Flash a radio from your browser.** The [web flasher](https://umsh.dev/flasher/) installs
-  the latest [firmware release](https://github.com/darconeous/umsh/releases) over USB.
-  [umsh.dev/hardware](https://umsh.dev/hardware/) lists the supported boards and what each is
-  good for.
-- **Pair it with the iOS app.** The public beta is on
-  [TestFlight](https://testflight.apple.com/join/4xsdZ8pg).
+- **Upstream releases.** The UMSH [web flasher](https://umsh.dev/flasher/) installs upstream
+  [firmware releases](https://github.com/darconeous/umsh/releases) over USB, and
+  [umsh.dev/hardware](https://umsh.dev/hardware/) lists the boards.
+- **Build from source.** Follow the steps below to build and flash UMSHNO firmware yourself.
 - **Or skip the phone.** The LilyGO T-Deck and T-LoRa Pager are communicators: keyboard
   handhelds that send and receive messages on their own.
 
@@ -161,6 +174,7 @@ The Wireshark integration has its own targets, covered below.
 | SenseCAP Solar Node P1 / P1-Pro | nRF52840 | `make flash-sensecap-solar` |
 | Seeed Wio Tracker L1 / L1 Pro | nRF52840 | `make flash-wio-tracker-l1` |
 | Seeed XIAO nRF52840 + Wio-SX1262 | nRF52840 | `make flash-xiao-nrf52` |
+| Elecrow ThinkNode M6 | nRF52840 | `make flash-thinknode-m6` |
 | Heltec WiFi LoRa 32 V3 | ESP32-S3 | `make flash-heltec-v3` |
 | LilyGO T-Beam Supreme (SX1262) | ESP32-S3 | `make flash-tbeam-supreme` |
 | Seeed XIAO ESP32S3 + Wio-SX1262 | ESP32-S3 | `make flash-xiao-esp32s3` |
@@ -273,6 +287,15 @@ unicast payloads. Key preferences, capture options, and the pcap formats are in
 file. `--layers=ulcp` or `--layers=both` records the ULCP exchange with the radio as well;
 those captures can hold sensitive property values, so check them before sharing.
 
+### Run the Android app
+
+[`apps/android/`](apps/android/) is a native Android application that pairs with a companion
+radio over BLE through CompanionDeviceManager. It reaches the same Rust core through UniFFI's
+Kotlin bindings, built by `make android-mobile-core`; `make android-debug` builds the app and
+`make android-test` runs its host-JVM tests. Its design decisions, and what is still unverified
+on real hardware, are recorded in
+[docs/architecture/decisions/android/](docs/architecture/decisions/android/README.md).
+
 ### Run the iOS app
 
 [`apps/ios/`](apps/ios/) is a SwiftUI application that pairs with a companion radio over BLE
@@ -346,16 +369,26 @@ and [Reticulum](https://darconeous.github.io/umsh/docs/protocol/reticulum-compar
 
 ## Contributing
 
-Feedback and issues are welcome on GitHub. Before your first commit, enable the checked-in
-pre-commit hook, which rejects commits that aren't rustfmt-clean in either workspace:
+Issues and pull requests are welcome on [KrakenSaten/UMSHNO](https://github.com/KrakenSaten/UMSHNO).
+Before your first commit, enable the checked-in pre-commit hook, which rejects commits that
+aren't rustfmt-clean in either workspace:
 
 ```sh
 git config core.hooksPath .githooks
 ```
 
+Protocol changes follow the UEP process in [`docs/protocol/`](docs/protocol/) and should be
+proposed upstream as well, so UMSH and UMSHNO stay one protocol. Fixes that apply to UMSH are
+worth sending upstream; [UPSTREAM.md](UPSTREAM.md) describes how.
+
 ---
 
-## License
+## License and acknowledgements
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
-[MIT license](LICENSE-MIT) at your option.
+[MIT license](LICENSE-MIT) at your option, as UMSH is.
+
+UMSHNO is built on [UMSH](https://github.com/darconeous/umsh) by Robert Quattlebaum, whose
+specification, reference implementation, firmware, apps, and tooling make up most of this
+repository. The full upstream history is preserved here, and upstream copyright notices are
+retained.
