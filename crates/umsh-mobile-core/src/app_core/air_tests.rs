@@ -696,36 +696,26 @@ async fn mesh_dfu_entry_answers_by_the_device_status() {
     );
 }
 
-/// Bond clearing across the mesh: the managed repeater clears its bonds
-/// and echoes the count, and an unreachable device is unreachable. The
-/// soft device cannot refuse a zero bond count it supports, so a refusal
-/// is `bonds_cleared`'s own table test.
+/// Bond clearing across the mesh is refused: a bond grants the local
+/// binding, which reaches past what an administrator may, so the device
+/// answers that it is not permitted, and the screen is told so. An
+/// unreachable device is still unreachable.
 #[tokio::test]
-async fn mesh_bond_clearing_answers_by_the_device_echo() {
-    use crate::ulcp::UlcpManageCategory;
+async fn mesh_bond_clearing_is_refused_as_not_permitted() {
     use crate::{MobileManagementOutcome, MobileManagementProblem};
+    use crate::{MobileRefusal, MobileRefusalReason};
     let staged = Staged::new().await;
     let device = managed_repeater(&staged).await;
     assert_eq!(
         device.clear_bluetooth_pairings().await,
-        Ok(MobileManagementOutcome::Done)
-    );
-    // Read again from the device, not from what the write meant.
-    assert_eq!(
-        device.refresh_category(UlcpManageCategory::Bluetooth).await,
-        Ok(MobileManagementOutcome::Done)
-    );
-    let bluetooth = device
-        .snapshot()
-        .readings
-        .into_iter()
-        .find(|reading| reading.category == UlcpManageCategory::Bluetooth)
-        .unwrap();
-    assert!(bluetooth.is_fresh);
-    assert_eq!(
-        bluetooth.properties.ble_bond_count,
-        Some(0),
-        "the bonds are gone"
+        Ok(MobileManagementOutcome::Failed {
+            problem: MobileManagementProblem::Refused {
+                refusal: MobileRefusal {
+                    reason: MobileRefusalReason::NotPermitted,
+                    status: Some(umsh_ulcp::status::Status::NOT_PERMITTED.0),
+                },
+            },
+        })
     );
 
     staged.air.set_remote_device_reachable(false);

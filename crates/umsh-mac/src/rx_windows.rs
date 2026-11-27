@@ -140,8 +140,17 @@ impl RxWindow {
     }
 
     /// Whether the next persistence pass should write this entry.
+    ///
+    /// Frames accepted on top of a stored baseline wait for the interval:
+    /// a restart reopens at most that many. Frames accepted while the
+    /// store holds no baseline at all (a peer's first contact, or a
+    /// stranger promoted with frames already accepted) are written at the
+    /// next pass: restarted without a baseline, the window would take a
+    /// replay of any of them as first contact.
     pub fn needs_persist(&self) -> bool {
-        self.write_now || self.unpersisted_frames >= RX_COUNTER_PERSIST_INTERVAL
+        self.write_now
+            || self.unpersisted_frames >= RX_COUNTER_PERSIST_INTERVAL
+            || (self.persisted_rx_counter == 0 && self.unpersisted_frames > 0)
     }
 
     /// Ask the next persistence pass to write whatever has not been
@@ -485,11 +494,13 @@ mod tests {
         let mut windows = RxWindows::<1, 0>::new();
         windows.register(key(1), 0).unwrap();
         let entry = windows.get_mut(&key(1)).unwrap();
-        entry.merge_stored(0, 0);
-        entry.accept(1, &[1; 16], 0);
-        entry.accept(1_001, &[2; 16], 0);
+        // On top of a stored baseline: with none, the first frame is
+        // written at once.
+        entry.merge_stored(1, 0);
+        entry.accept(2, &[1; 16], 0);
+        entry.accept(1_002, &[2; 16], 0);
         assert!(!entry.needs_persist());
-        for counter in 1_002..1_002 + u32::from(RX_COUNTER_PERSIST_INTERVAL) - 3 {
+        for counter in 1_003..1_003 + u32::from(RX_COUNTER_PERSIST_INTERVAL) - 3 {
             entry.accept(counter, &[3; 16], 0);
         }
         assert_eq!(entry.unpersisted_frames(), RX_COUNTER_PERSIST_INTERVAL - 1);
@@ -498,5 +509,27 @@ mod tests {
         assert!(entry.needs_persist());
         entry.mark_persisted(5_000);
         assert!(!entry.needs_persist());
+    }
+
+    /// With no stored baseline, one accepted frame is worth a write, and
+    /// so is a promoted stranger's window that has accepted frames.
+    #[test]
+    fn a_window_with_no_stored_baseline_writes_its_first_frame() {
+        let mut windows = RxWindows::<2, 1>::new();
+        windows.register(key(1), 0).unwrap();
+        let entry = windows.get_mut(&key(1)).unwrap();
+        entry.merge_stored(0, 0);
+        assert!(!entry.needs_persist(), "nothing accepted, nothing to write");
+        entry.accept(7, &[1; 16], 0);
+        assert!(entry.needs_persist());
+        entry.mark_persisted(7);
+        assert!(!entry.needs_persist());
+
+        let stranger = windows.get_or_insert_stranger(key(2), 0).unwrap();
+        stranger.accept(3, &[2; 16], 0);
+        windows.register(key(2), 1).unwrap();
+        let entry = windows.get_mut(&key(2)).unwrap();
+        entry.merge_stored(0, 1);
+        assert!(entry.needs_persist());
     }
 }

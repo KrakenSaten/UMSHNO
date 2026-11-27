@@ -73,14 +73,14 @@ fn deployment(dir: &Path, sides: Sides) -> Deployment {
     let client_tables = tables("client", sides.client);
     Deployment {
         server: format!(
-            "[identity]\nkey_file = \"{d}/server.key\"\n\
+            "[identity]\nkey_file = '{d}/server.key'\n\
              [server]\nlisten = [\"127.0.0.1:0\"]\n{}\
              [[server.clients]]\nname = \"cabin\"\naddress = \"{client_address}\"\n",
             tables("server", sides.server)
         ),
         client: Box::new(move |tunnel| {
             format!(
-                "[identity]\nkey_file = \"{client_key}\"\n\
+                "[identity]\nkey_file = '{client_key}'\n\
                  [client]\nserver = \"{tunnel}\"\n\
                  server_address = \"{server_address}\"\n{client_tables}"
             )

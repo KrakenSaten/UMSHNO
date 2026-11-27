@@ -103,11 +103,12 @@ fn load_or_create_identity(path: &Path) -> Result<SoftwareIdentity> {
                     path.display()
                 )
             })?;
+            restrict_to_owner(path)?;
             Ok(SoftwareIdentity::from_secret_bytes(&secret))
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
+                create_private_dir(parent)
                     .with_context(|| format!("creating {}", parent.display()))?;
             }
             let secret = umsh::crypto::software::generate_identity_secret(|secret| {
@@ -115,12 +116,97 @@ fn load_or_create_identity(path: &Path) -> Result<SoftwareIdentity> {
                 Ok::<_, std::convert::Infallible>(())
             })
             .unwrap_or_else(|never| match never {});
-            std::fs::write(path, secret).with_context(|| format!("writing {}", path.display()))?;
+            match create_owner_only(path, &secret) {
+                Ok(()) => {}
+                // Another invocation made it first: that identity is the one.
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    return load_or_create_identity(path);
+                }
+                Err(error) => {
+                    return Err(error).with_context(|| format!("writing {}", path.display()));
+                }
+            }
             note("generated a new administrator identity");
             Ok(SoftwareIdentity::from_secret_bytes(&secret))
         }
         Err(error) => Err(error).with_context(|| format!("reading {}", path.display())),
     }
+}
+
+/// Write a new identity seed that only its owner can read. The mode goes on
+/// `open`, not a later `chmod`: between the two the key would be readable
+/// by everyone. Never overwrites: a seed that exists is an identity devices
+/// already list.
+#[cfg(unix)]
+fn create_owner_only(path: &Path, secret: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    use std::os::unix::fs::OpenOptionsExt as _;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(secret)?;
+    file.sync_all()
+}
+
+/// Windows: no access list is set here. The file inherits its
+/// directory's, which is owner-only under the user's profile but is
+/// whatever `HOME` or `XDG_STATE_HOME` points at otherwise.
+#[cfg(not(unix))]
+fn create_owner_only(path: &Path, secret: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(secret)?;
+    file.sync_all()
+}
+
+/// An identity seed an earlier version wrote readable by others keeps its
+/// key, and loses the extra readers. Where its mode cannot be changed (a
+/// file owned by someone else, a share that ignores modes), the identity
+/// still loads and the user is warned: refusing it would lock them out of
+/// every device that lists it.
+#[cfg(unix)]
+fn restrict_to_owner(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let mode = std::fs::metadata(path)
+        .with_context(|| format!("reading {}", path.display()))?
+        .permissions()
+        .mode();
+    if mode & 0o077 != 0 {
+        match std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+            Ok(()) => note(
+                "the administrator identity was readable by others; it is now its owner's only",
+            ),
+            Err(error) => crate::output::warn(format!(
+                "{} is readable by others and could not be restricted ({error});                  run `chmod 600` on it",
+                path.display()
+            )),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_to_owner(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+/// Create the directory the seed lives in, and any parents, readable only
+/// by their owner where that is a mode. Directories that exist are left as
+/// they are: they hold this tool's other state too.
+fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(dir)
 }
 
 /// `admin-key`: print the public key a device must list to be managed
@@ -905,6 +991,65 @@ async fn serve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A scratch directory of the test's own.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("umshctl-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    /// A generated identity is kept, and the same one comes back.
+    #[test]
+    fn an_administrator_identity_is_made_once_and_kept() {
+        let dir = scratch("admin-kept");
+        let path = dir.join("state").join("umshctl-admin.key");
+        let first = load_or_create_identity(&path).unwrap();
+        let again = load_or_create_identity(&path).unwrap();
+        assert_eq!(first.public_key(), again.public_key());
+        assert_eq!(std::fs::read(&path).unwrap().len(), 32);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Only the owner may read a new seed, or its directory.
+    #[cfg(unix)]
+    #[test]
+    fn a_new_administrator_identity_is_its_owners_only() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let dir = scratch("admin-mode");
+        let path = dir.join("state").join("umshctl-admin.key");
+        load_or_create_identity(&path).unwrap();
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A seed an earlier version left readable by others keeps its identity
+    /// and loses the other readers.
+    #[cfg(unix)]
+    #[test]
+    fn an_exposed_administrator_identity_is_restricted_and_kept() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let dir = scratch("admin-exposed");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("umshctl-admin.key");
+        std::fs::write(&path, [7u8; 32]).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let identity = load_or_create_identity(&path).unwrap();
+        assert_eq!(
+            identity.public_key(),
+            SoftwareIdentity::from_secret_bytes(&[7u8; 32]).public_key()
+        );
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), [7u8; 32]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn an_exchange_is_rerun_once_only_when_a_recovery_ate_it() {

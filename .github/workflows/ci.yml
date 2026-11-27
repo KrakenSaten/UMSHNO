@@ -1,27 +1,76 @@
 name: CI
 
-# Tiering rationale: the "fast" job covers the bulk of
-# protocol/crypto/wire-format regressions in about a minute on stock Ubuntu.
-# The nRF52840 firmware job is release-only because dev builds overflow flash
-# on these boards (see CLAUDE.md)—it's also the only thing that would have
-# caught a flash-budget regression before it shipped. The Apple job runs on
-# every push/PR since this is a public repo (macOS runner minutes are free
-# here); ESP32 is pushed to main-only / manual-dispatch since it's the least
-# load-bearing target right now and needs a heavier toolchain bring-up.
+# What runs, and when:
+#
+# - Pull requests and pushes to main run only the jobs the change needs:
+#   `changes` (scripts/ci_changes.py) compares the commits and turns jobs
+#   on by component. A documentation-only change runs almost nothing; a
+#   change to CI itself runs everything.
+# - Dispatch (Actions → CI → Run workflow), `fw-*` release tags, and the
+#   weekly schedule run everything, the ESP32 matrix included.
+# - `CI result` is the one check to require on main: it fails when any job
+#   that ran failed or was cancelled, and passes when the rest were not
+#   needed. Upstream's Android application is built and tested, but its
+#   result does not gate: UMSHNO will have its own app. The Rust mobile
+#   core is still built for Android and tested on the host.
+#
+# The nRF52840 firmware jobs build in release because dev builds overflow
+# flash (see AGENTS.md); they are also what catches a flash-budget
+# regression. macOS runner minutes are free for this public repository.
 
 on:
   push:
     branches: [main]
+    tags: ["fw-*"]
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Mondays 04:17 UTC: the whole matrix, so toolchain drift in jobs that a
+    # week of changes did not select still surfaces.
+    - cron: "17 4 * * 1"
 
+# A newer push to a pull request supersedes the older run. Runs on main
+# finish, so every commit on main has a result.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: select jobs
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.select.outputs.rust }}
+      dissector: ${{ steps.select.outputs.dissector }}
+      docs: ${{ steps.select.outputs.docs }}
+      nrf: ${{ steps.select.outputs.nrf }}
+      esp32: ${{ steps.select.outputs.esp32 }}
+      ios: ${{ steps.select.outputs.ios }}
+      android_core: ${{ steps.select.outputs.android_core }}
+      android_app: ${{ steps.select.outputs.android_app }}
+      regions: ${{ steps.select.outputs.regions }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          case "$EVENT/$GITHUB_REF" in
+            pull_request/*) args=("$PR_BASE" "$GITHUB_SHA") ;;
+            push/refs/heads/*) args=("$PUSH_BEFORE" "$GITHUB_SHA") ;;
+            *) args=(--full) ;;
+          esac
+          python3 scripts/ci_changes.py "${args[@]}" | tee -a "$GITHUB_OUTPUT"
+
   fast:
-    name: fmt, test, clippy, docs, dissector
+    name: fmt, test, clippy
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,6 +167,14 @@ jobs:
       - name: cargo clippy (fuzz)
         run: cd fuzz && cargo +stable clippy --all-targets -- -D warnings
 
+  docs:
+    name: protocol books
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Install mdbook
         uses: peaceiris/actions-mdbook@v2
         with:
@@ -127,6 +184,14 @@ jobs:
         run: |
           mdbook build docs/protocol-legacy/
           mdbook build docs/protocol/
+
+  dissector:
+    name: Wireshark dissector
+    needs: changes
+    if: needs.changes.outputs.dissector == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       # run_tests.lua needs Lua 5.3+ and stubs the Wireshark API, so no
       # Wireshark install is required. The crypto section self-skips when
@@ -149,17 +214,35 @@ jobs:
             exit 1
           fi
 
-  # The region database's Python compiler and its cross-implementation
-  # conformance. Everything here runs on the committed tree: the fixture
-  # database is a build output that lives in the repository, so CI checks that
-  # it still matches its source rather than compiling a global database on
-  # every push.
+  # The host workspace on Windows, through the same script a Windows
+  # developer runs: each default member in a build of its own, because
+  # built together the board support crates' embassy-time reaches every
+  # test binary, and a PE image must resolve its driver's symbols. See
+  # scripts/host_test.py.
+  windows:
+    name: host tests (Windows)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Host tests
+        run: python scripts/host_test.py --locked
+
   # The wrappers build on the nightly fuzz/rust-toolchain.toml pins, so an API
   # change that breaks one fails here rather than in the night's fuzzing. No
   # fuzzing runs on a pull request: `cargo test` above already replays every
   # committed seed and regression, and fuzz.yml does the rest on a schedule.
   fuzz-build:
     name: fuzz targets build
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -178,8 +261,15 @@ jobs:
       - name: cargo fuzz build
         run: make fuzz-build
 
+  # The region database's Python compiler and its cross-implementation
+  # conformance. Everything here runs on the committed tree: the fixture
+  # database is a build output that lives in the repository, so CI checks that
+  # it still matches its source rather than compiling a global database on
+  # every push.
   regions:
     name: region database
+    needs: changes
+    if: needs.changes.outputs.regions == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -226,6 +316,8 @@ jobs:
 
   firmware-nrf52840:
     name: firmware (nRF52840) / ${{ matrix.board }}
+    needs: changes
+    if: needs.changes.outputs.nrf == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -284,6 +376,8 @@ jobs:
 
   apple:
     name: iOS / mobile-core
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -370,8 +464,58 @@ jobs:
       - name: Export strings for translation
         run: scripts/ios/export-localizations.sh
 
+  # The Rust mobile core cross-built for Android exactly as the app's
+  # Gradle build does it, with the 16 KB page alignment Play requires of
+  # its native code.
+  android-core:
+    name: mobile-core (Android targets)
+    needs: changes
+    if: needs.changes.outputs.android_core == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Install the pinned NDK
+        run: |
+          ndk=$(sed -n 's/^ndk = "\(.*\)"/\1/p' apps/android/gradle/libs.versions.toml)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ndk" >> "$GITHUB_ENV"
+
+      - name: Cross-build
+        run: |
+          sdk=$(sed -n 's/^minSdk = "\(.*\)"/\1/p' apps/android/gradle/libs.versions.toml)
+          cargo ndk --platform "${sdk:-31}" -t arm64-v8a -t x86_64 build --locked --release -p umsh-mobile-core
+
+      - name: Check 16 KB alignment
+        run: |
+          readelf="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          status=0
+          for so in target/*-linux-android/release/libumsh_mobile_core.so; do
+            if "$readelf" -lW "$so" | awk '$1 == "LOAD" && strtonum($NF) < 16384 { bad = 1 } END { exit bad }'; then
+              echo "ok: $so"
+            else
+              echo "::error::$so has a LOAD segment aligned below 16 KB"
+              status=1
+            fi
+          done
+          exit $status
+
+  # Upstream's Android application. It still builds and runs its tests so
+  # the result stays visible, but it does not gate `CI result`: UMSHNO will
+  # have an Android app of its own.
   android:
-    name: Android / mobile-core
+    name: Android app (upstream, not required)
+    needs: changes
+    if: needs.changes.outputs.android_app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -430,7 +574,8 @@ jobs:
     runs-on: ubuntu-latest
     # Main-only / manual: heavier toolchain bring-up, and the least
     # load-bearing targets right now.
-    if: github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.esp32 == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -470,3 +615,33 @@ jobs:
       # The crates Credits lists, against what the communicator images link.
       - if: matrix.make_target == 'build-tlora-pager'
         run: make crate-notices-check
+
+  # The one check to require on main. A job that was not needed is skipped
+  # and counts as passing; one that failed or was cancelled fails this.
+  ci-result:
+    name: CI result
+    if: always()
+    needs:
+      - changes
+      - fast
+      - docs
+      - dissector
+      - windows
+      - fuzz-build
+      - regions
+      - firmware-nrf52840
+      - apple
+      - android-core
+      - esp32
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every needed job passed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "::error::a required job failed or was cancelled"
+            exit 1
+          fi
+

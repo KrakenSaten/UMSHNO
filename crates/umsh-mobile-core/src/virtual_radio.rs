@@ -416,8 +416,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Where there are no Unix domain sockets, a radio asked to serve one
+    /// says the socket is unavailable rather than serving without it.
+    #[cfg(not(unix))]
+    #[test]
+    fn a_local_socket_is_unavailable_without_unix_sockets() {
+        let dir = scratch("no-unix-socket");
+        let (wire_tx, _) = std_mpsc::channel();
+        let listener = Arc::new(Collect(Mutex::new(wire_tx)));
+        let served = MobileVirtualRadio::serve(
+            dir.to_string_lossy().into_owned(),
+            dir.join("ulcp").to_string_lossy().into_owned(),
+            false,
+            MobileVirtualRadioReach::ThisHost,
+            listener,
+        );
+        assert!(matches!(
+            served,
+            Err(MobileVirtualRadioError::SocketUnavailable)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A serving radio answers on a connection to its socket, and takes
     /// its socket with it when it stops.
+    #[cfg(unix)]
     #[test]
     fn a_serving_radio_answers_on_its_socket() {
         use std::io::Read;

@@ -285,6 +285,24 @@ pub async fn serve(listener: UnixListener, host: mpsc::Sender<HostEvent>) {
     }
 }
 
+/// The local socket where there are no Unix domain sockets: there is none,
+/// so no value of this type exists.
+#[cfg(not(unix))]
+pub enum NoLocalSocket {}
+
+/// No local socket can be made where there are no Unix domain sockets; a
+/// device there serves its host over the LAN group alone.
+#[cfg(not(unix))]
+pub fn bind_local_socket(_path: &Path) -> io::Result<NoLocalSocket> {
+    Err(io::ErrorKind::Unsupported.into())
+}
+
+/// Unreachable: [`bind_local_socket`] never yields a listener here.
+#[cfg(not(unix))]
+pub async fn serve(listener: NoLocalSocket, _host: mpsc::Sender<HostEvent>) {
+    match listener {}
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::Ipv4Addr;

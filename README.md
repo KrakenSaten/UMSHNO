@@ -163,6 +163,24 @@ Host builds and tests come from the workspace root and deliberately skip `firmwa
 cargo test
 ```
 
+#### On Windows
+
+Install Rust with the official [rustup](https://rustup.rs) installer. Either host toolchain
+works: MSVC (the default, which needs the Visual Studio Build Tools) or
+`x86_64-pc-windows-gnu` with a MinGW-w64 GCC on `PATH`. With the GNU toolchain, keep
+`RUSTUP_HOME` and `CARGO_HOME` on a path without non-ASCII characters (for example
+`C:\Rust\rustup` and `C:\Rust\cargo`): MinGW's linker cannot open files under a profile
+directory such as `C:\Users\Zoë`.
+
+Run the host tests through the script, not `cargo test` directly:
+
+```sh
+python scripts/host_test.py
+```
+
+It tests each default member in a build of its own, which Windows needs (see the script for
+why); on Linux and macOS it is plain `cargo test`. CI runs it on Windows too.
+
 ### Install the host tools
 
 ```sh
@@ -383,6 +401,10 @@ aren't rustfmt-clean in either workspace:
 ```sh
 git config core.hooksPath .githooks
 ```
+
+CI runs only the jobs a change affects (`scripts/ci_changes.py`), and **CI result** is the
+check that must pass. Run the whole matrix, ESP32 firmware included, from Actions → CI → Run
+workflow.
 
 Protocol changes follow the UEP process in [`docs/protocol/`](docs/protocol/) and should be
 proposed upstream as well, so UMSH and UMSHNO stay one protocol. Fixes that apply to UMSH are

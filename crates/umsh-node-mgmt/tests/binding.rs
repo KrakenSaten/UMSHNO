@@ -1127,13 +1127,12 @@ fn a_reset_is_answered_by_nothing() {
     assert_eq!(device.local_get(prop::DEV_ADMINS), ADMIN_KEY.to_vec());
 }
 
-/// Bond management is not reset-class: an administrator hears what it
-/// did. Clearing bonds over the mesh addresses the device's node, not
-/// one of its Bluetooth hosts, so the link that carried the write
-/// survives it and the reply arrives—and both halves are ordinary
-/// property writes whose replies quote the state back.
+/// An administrator may see how many Bluetooth hosts are bonded, but not
+/// start pairing one: a bond grants the local binding, which reaches past
+/// this one, so forgetting the bonds and opening a window are refused by
+/// name, and the reply still arrives to say so.
 #[test]
-fn an_administrator_manages_bonds_and_is_told_the_outcome() {
+fn an_administrator_reads_bonds_but_cannot_start_pairing() {
     let mut device = managed();
     let mut buf = [0u8; 64];
 
@@ -1144,12 +1143,12 @@ fn an_administrator_manages_bonds_and_is_told_the_outcome() {
     let len = frame::prop_set(&mut buf, 0, prop::BLE_PAIRING, &[1]).unwrap();
     let pairing = converse(&mut device, &buf[..len], 2);
     assert!(matches!(pairing.outcome, Outcome::Replied { .. }));
-    assert_eq!(value_of(&pairing.reply), vec![1]);
+    assert_eq!(status_of(&pairing.reply), Status::NOT_PERMITTED);
 
     let len = frame::prop_set(&mut buf, 0, prop::BLE_BOND_COUNT, &[0]).unwrap();
     let cleared = converse(&mut device, &buf[..len], 3);
     assert!(matches!(cleared.outcome, Outcome::Replied { .. }));
-    assert_eq!(value_of(&cleared.reply), vec![0]);
+    assert_eq!(status_of(&cleared.reply), Status::NOT_PERMITTED);
 }
 
 /// What the binding does not reach, checked from the far end of the link

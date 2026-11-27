@@ -15,7 +15,9 @@ that UMSHNO starts from. UMSHNO keeps that work and its history intact, and buil
   `NOTICE` file, so there is no NOTICE text to propagate.
 - Forked third-party dependencies (`lora-rs`, `trouble`, `esp-hal`, `buoyant`) are pinned by
   commit in `Cargo.toml` and `firmware-esp32/Cargo.toml`, and are hosted on the upstream
-  maintainer's GitHub account. Their own licenses apply.
+  maintainer's GitHub account. Their own licenses apply. See
+  [docs/umshno/dependencies.md](docs/umshno/dependencies.md) for the review and
+  recommendations.
 
 ## What "UMSHNO" renames, and what it does not
 
@@ -57,31 +59,32 @@ Importing upstream work:
 3. Cherry-pick only when a single upstream fix is needed ahead of a full sync.
 4. Run the checks for the areas the sync touched, then merge the sync branch by pull request.
 
-Work worth sending back to UMSH (bug fixes, board support) goes as a pull request from the
-`KrakenSaten/umsh` fork, branched from `upstream/main`, so it carries no UMSHNO branding.
+Work worth sending back to UMSH (bug fixes, security fixes, board support) goes as a pull
+request branched from `upstream/main`, so it carries no UMSHNO branding. The old fork,
+`KrakenSaten/umsh`, is archived and read-only (see below): to open an upstream pull request,
+either unarchive it for the purpose or create a fresh fork of `darconeous/umsh`.
 
-## GitHub repository
+## GitHub repositories
 
-`KrakenSaten/umsh` is a GitHub fork of `darconeous/umsh` (no stars, forks, issues, or open
-pull requests of its own). Options for `KrakenSaten/UMSHNO`:
+| Repository | Role |
+|---|---|
+| `KrakenSaten/UMSHNO` | The active repository: an independent (non-fork) repository holding the full history. |
+| `KrakenSaten/umsh` | The original GitHub fork. Archived and read-only since 2026-11-27; its README points here. It keeps the earlier contributions, including the branch behind upstream pull request #21. |
+| `darconeous/umsh` | Upstream. Fetched from, never pushed to. |
 
-| Option | Independent | History | Upstream PRs | Reversible |
-|---|---|---|---|---|
-| **A. New repository, push full history** | Yes | Complete: every branch and tag pushed | Keep sending them from the existing `KrakenSaten/umsh` fork | Yes: delete the new repository |
-| B. Rename the fork to `UMSHNO` | No: still labeled "forked from darconeous/umsh", PRs default to upstream as base | Complete | From the same repository | Yes |
-| C. Ask GitHub Support to detach the fork, then rename | Yes | Complete | Need a new fork for upstream PRs | No: a detached fork cannot be reattached |
-
-**Recommendation: A.** Create `KrakenSaten/UMSHNO` as a new, empty, public repository (no
-README or license, so the first push does not conflict), push `umshno/foundation` as its
-`main` along with the upstream tags, and keep `KrakenSaten/umsh` as the fork used only for
-upstream contributions. Nothing is lost, it can be undone, and both relationships stay
-clear. Before the first push, decide whether the CI workflow should run (it uses macOS
-runners for iOS, free for public repositories) and whether the `fw-*` tags belong to UMSHNO's
-release namespace, since they name upstream releases.
+UMSHNO was established as a new repository with the full history pushed to it, rather than
+by renaming the fork (which stays labeled "forked from", with pull requests defaulting to
+upstream) or by asking GitHub to detach it (which cannot be undone). The upstream `fw-*`
+release tags were not pushed: they name upstream releases.
 
 ## Divergence log
 
 | Change | Wire-compatible | Notes |
 |---|---|---|
 | Project identity, documentation, roadmap | Yes | No protocol, storage, or identifier changes |
-| Elecrow ThinkNode M6 board support | Yes | New board; `crates/umsh-bsp-thinknode-m6`, `firmware/thinknode-m6` |
+| Elecrow ThinkNode M6 board support | Yes | New board; `crates/umsh-bsp-thinknode-m6`, `firmware/thinknode-m6`; placeholder app image |
+| Windows host build and tests (M1) | Yes | `scripts/host_test.py`, a Windows CI job, LF checkouts; worth offering upstream |
+| S4: mesh administrators cannot start Bluetooth pairing | Yes (behavior) | Remote "forget phones" is refused; offer upstream |
+| S1: a new peer's receive baseline is written at once | Yes | Offer upstream |
+| S5: `umshctl` administrator key is owner-only | Yes | Offer upstream |
+| S6: X25519 secrets wiped on drop | Yes | Offer upstream |

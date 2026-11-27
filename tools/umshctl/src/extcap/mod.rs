@@ -14,6 +14,7 @@
 
 pub mod protocol;
 
+#[cfg(unix)]
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::time::Duration;

@@ -29,9 +29,6 @@ umsh-lan-bearer = { path = "../umsh-lan-bearer", features = ["tokio"] }
 umsh-ulcp-device = { path = "../umsh-ulcp-device" }
 umsh-ulcp-simdev = { path = "../umsh-ulcp-simdev", features = ["lan"] }
 embedded-hal-async.workspace = true
-# The app core's schedules read a clock that keeps counting while the phone
-# sleeps, which `std` does not offer.
-libc = "0.2"
 lwuri.workspace = true
 # The core logs through the `log` facade; the platform installs the logger.
 # `kv` carries the private values as fields of their own.
@@ -44,10 +41,20 @@ tokio = { version = "1", features = ["macros", "net", "rt", "sync", "time"] }
 uniffi = "=0.32.0"
 zeroize.workspace = true
 
+# The app core's schedules read a clock that keeps counting while the phone
+# sleeps, which `std` does not offer. Windows reads its tick count instead.
+[target.'cfg(not(windows))'.dependencies]
+libc = "0.2"
+
 # The NDK exposes no SQLite to apps, so Android compiles it in. iOS links the
 # system library. `bundled-sqlite` turns on `rusqlite/bundled`, which covers
 # the application store as well, since both share the one `rusqlite`.
 [target.'cfg(target_os = "android")'.dependencies]
+umsh-regiondb = { path = "../umsh-regiondb", features = ["bundled-sqlite"] }
+
+# Windows ships no SQLite to link either, so a Windows host build compiles
+# it in too.
+[target.'cfg(windows)'.dependencies]
 umsh-regiondb = { path = "../umsh-regiondb", features = ["bundled-sqlite"] }
 
 [dev-dependencies]

@@ -67,6 +67,69 @@ Principles for every milestone:
   concrete remote or power-loss attack), then S2, S5, and S6, then the dependency mirrors and
   CI.
 
+- **Progress (2026-11-27, branch `m1-trusted-baseline`):** Windows host build and CI job
+  done; S1, S5, and S6 (X25519) fixed and S4 mitigated (residual: reset into the first-boot window), each with regression tests; S2 reproduced and deferred
+  to a UEP-0007 discussion; dependency review in [dependencies.md](dependencies.md). Remaining:
+  mirroring the forked dependencies (needs new repositories), `cargo-deny`, and the S3 plan.
+
+#### Protocol behavior changes in M1
+
+One change alters what a device does in response to a protocol message, with no change to
+the wire format:
+
+- **Administrative binding refuses Bluetooth pairing writes.** `PROP_BLE_BOND_COUNT`,
+  `PROP_BLE_PAIRING`, and `PROP_BLE_PAIRING_PIN` join `PROP_DEV_PRIVATE_KEY` in the set a
+  mesh administrator may not write, answered with the existing `STATUS_NOT_PERMITTED`
+  (`docs/protocol-legacy/src/app-node-management.md`, "The mesh administrative binding").
+  The device's own interface keeps them.
+  - *Justification:* a bond grants the local binding, which may install a device
+    identity, so these writes let an administrator exceed its binding (security finding S4).
+  - *Compatibility:* UMSHNO and upstream nodes still interoperate. A client managing a
+    UMSHNO device over the mesh sees a refusal it already handles; upstream devices
+    behave as before.
+  - *Migration:* none needed; nothing persisted changes.
+  - *Upstream:* to be proposed to UMSH with the fix, as an amendment to the node
+    management specification.
+
+#### M1 follow-ups
+
+Open after M1, in order. None changes the wire format.
+
+1. **Dependency hardening** (no hardware; needs approval to create repositories).
+   - Mirror the six Git-pinned dependencies under a UMSHNO-controlled account at the
+     same commits.
+   - Repoint both workspaces at the mirrors. Only the lockfiles' source URLs may change.
+   - Add `cargo-deny`, with the mirrors as the only allowed Git sources and RustSec
+     advisories checked.
+   - *Done when:* `cargo tree` shows no source outside crates.io and the mirrors, and
+     CI fails on a new Git source.
+2. **S4 residual: first-boot pairing window** (firmware; first change of M2).
+   - *Impact:* a mesh administrator can factory-reset a device, or reboot one with no
+     bonds, into the Just Works window that opens at boot when no PIN is set. Whoever is
+     in BLE range can then pair, and through the local binding install an identity. The
+     original identity is erased, not stolen; the device itself is taken over.
+   - *Requirement:* a boot window with no PIN opens only on a physical action (button
+     or screen), or is refused after a reset requested over the mesh.
+   - *Done when:* verified on at least one nRF52840 and one ESP32 board, and the
+     first-pairing behavior is written into the node management specification.
+3. **S2: unsigned multicast replay** (spec first).
+   - *Impact:* an eavesdropper without the channel key who records more than 64 channel
+     frames can replay them, and each is delivered to applications again. Signed and
+     unicast traffic is unaffected.
+   - *Interim requirement:* applications must not act on unsigned channel traffic as if
+     it were fresh.
+   - *Fix path:* propose a UEP-0007 amendment upstream: a reject-only check of unsigned
+     frames against the claimed source's existing window, which unsigned frames never
+     advance. Measure its false-rejection rate (hint collisions, reordering) in the
+     simulator before implementing.
+4. **Offer the M1 fixes upstream:** S1, S4, S5, S6, and the Windows build, as separate
+   pull requests from a fresh fork.
+5. **Small items from review:**
+   - hide remote pairing controls for devices that report UMSHNO firmware;
+   - write the S1 baseline for a first frame carrying counter 0;
+   - make `ChannelKey` non-`Copy` and zeroized;
+   - fix the flaky upstream test helper (`sent()` racing the chat engine).
+
 ### M2: Hardware verification loop
 
 - **Objective:** know that each supported board works, and keep knowing it.
@@ -150,7 +213,14 @@ These are not scheduled. Each needs a written design and, where it touches the w
   `firmware/nrf52-tracker/src/main.rs` along existing seams, coordinated with upstream so the
   merge cost stays bounded.
 
-## Recommended first engineering milestone
+## Recommended next milestone (after M1)
+
+**M2: Hardware verification loop**, starting with the bench rig and the ThinkNode M6
+checklist. The open S4 residual can only be closed with a firmware change to the pairing
+window, and that change must be verified on real radios, which M2 provides. Run
+dependency hardening (follow-up 1) at the same time: it needs no hardware.
+
+## Recommended first engineering milestone (M0 assessment)
 
 **M1: Trusted baseline**, starting with the Windows host build. Today the UMSHNO maintainer's
 own machine cannot run `cargo test`, so every later milestone would depend on CI for

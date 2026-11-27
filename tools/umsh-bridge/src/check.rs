@@ -136,17 +136,18 @@ mod tests {
             .unwrap()
             .public_key()
             .to_string();
+        // A literal string: a Windows path's backslashes are not escapes.
         let d = dir.display();
         (
             format!(
-                "[identity]\nkey_file = \"{d}/server.key\"\n\
+                "[identity]\nkey_file = '{d}/server.key'\n\
                  [server]\nlisten = [\"127.0.0.1:0\"]\n\
                  [server.radio]\ntype = \"udp-multicast\"\n\
                  [[server.clients]]\nname = \"myclient\"\naddress = \"{client_address}\"\n\
                  max_frames_per_minute = 60\n"
             ),
             format!(
-                "[identity]\nkey_file = \"{d}/client.key\"\n\
+                "[identity]\nkey_file = '{d}/client.key'\n\
                  [client]\nserver = \"127.0.0.1:21837\"\n\
                  server_address = \"{server_address}\"\n\
                  [client.radio]\ntype = \"udp-multicast\"\nport = 7374\n"
