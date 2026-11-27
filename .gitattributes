@@ -1,0 +1,9 @@
+# Text is checked out with LF line endings on every platform. Sources embed
+# SQL, fixtures, and golden files with `include_str!`/`include_bytes!`, and a
+# CRLF checkout on Windows changes what they hold: a schema written by a
+# Windows build would differ from the one iOS and Android write.
+* text=auto eol=lf
+
+# Windows batch files need CRLF to run.
+*.bat text eol=crlf
+*.cmd text eol=crlf
